@@ -6,7 +6,7 @@ Face detection uses [`face_recognition`](https://github.com/ageitgey/face_recogn
 
 ## Status
 
-All three API endpoints are functional end-to-end: upload → detect → annotate → serve. The React UI and the test suite land in the remaining commits.
+End-to-end: React frontend uploads a clip, the API runs the detection pipeline, and the UI renders the annotated video alongside the per-frame ROI table. The test suite lands in the final commit.
 
 ## Quick start (Docker)
 

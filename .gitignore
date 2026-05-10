@@ -12,6 +12,8 @@ htmlcov/
 node_modules/
 dist/
 *.log
+# Vite drops a timestamped temp config file during build
+vite.config.*.timestamp-*
 
 # OS / editor
 .DS_Store
