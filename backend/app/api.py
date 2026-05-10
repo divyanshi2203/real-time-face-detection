@@ -1,21 +1,24 @@
 """HTTP API blueprint.
 
-Endpoints landing in this commit:
+Endpoints:
 
-  POST /api/videos      -> upload a video file (mp4 / webm / mov)
-  GET  /api/videos/<id> -> metadata for a video (placeholder; commit 3 streams
-                           the processed mp4 from this same URL)
+  POST /api/videos              upload a video file (mp4 / webm / mov)
+  GET  /api/videos/<id>         stream the processed mp4 (with ROIs drawn)
+  GET  /api/videos/<id>/rois    per-frame ROI data + video metadata as JSON
 
-The detection pipeline and the per-frame ROI endpoint are wired up in the
-next commit.
+Processing runs synchronously inside ``POST /api/videos`` — see
+``services.video_processor``.
 """
 from __future__ import annotations
 
-from flask import Blueprint, current_app, jsonify, request, url_for
+from pathlib import Path
+
+from flask import Blueprint, current_app, jsonify, request, send_file, url_for
 
 from .errors import APIError
 from .extensions import db
 from .models import Video
+from .services.video_processor import VideoProcessingError, process_video
 from .storage import safe_extension, store_upload
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -52,7 +55,7 @@ def upload_video():
             415,
         )
 
-    _, stored_name, size = store_upload(file, cfg["UPLOAD_DIR"])
+    source, stored_name, size = store_upload(file, cfg["UPLOAD_DIR"])
 
     video = Video(
         original_filename=file.filename,
@@ -63,6 +66,16 @@ def upload_video():
     )
     db.session.add(video)
     db.session.commit()
+
+    dest = Path(cfg["PROCESSED_DIR"]) / stored_name
+    try:
+        process_video(video, source, dest)
+    except VideoProcessingError as exc:
+        raise APIError(
+            "processing_failed",
+            str(exc) or "Video processing failed.",
+            422,
+        )
 
     response = jsonify(video.to_dict())
     response.status_code = 201
@@ -75,5 +88,47 @@ def get_video(video_id: int):
     video = db.session.get(Video, video_id)
     if video is None:
         raise APIError("not_found", f"Video {video_id} not found.", 404)
-    # Streaming the processed mp4 lands in the next commit.
-    return jsonify(video.to_dict())
+
+    if video.status == Video.STATUS_FAILED:
+        raise APIError(
+            "processing_failed",
+            video.error_message or "Video processing failed.",
+            422,
+        )
+    if video.status != Video.STATUS_PROCESSED:
+        raise APIError(
+            "not_ready",
+            f"Video is not ready yet (status={video.status!r}).",
+            409,
+        )
+
+    processed_path = Path(current_app.config["PROCESSED_DIR"]) / video.stored_filename
+    if not processed_path.exists():
+        raise APIError(
+            "not_found",
+            "Processed video file is missing on disk.",
+            404,
+        )
+
+    return send_file(
+        processed_path,
+        mimetype="video/mp4",
+        conditional=True,  # enables HTTP Range requests for <video> seeking
+    )
+
+
+@api_bp.get("/videos/<int:video_id>/rois")
+def get_video_rois(video_id: int):
+    video = db.session.get(Video, video_id)
+    if video is None:
+        raise APIError("not_found", f"Video {video_id} not found.", 404)
+
+    return jsonify({
+        "video_id": video.id,
+        "status": video.status,
+        "fps": video.fps,
+        "frame_count": video.frame_count,
+        "width": video.width,
+        "height": video.height,
+        "rois": [r.to_dict() for r in video.rois.all()],
+    })
