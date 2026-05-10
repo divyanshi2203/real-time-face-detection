@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import Optional
 
-import face_recognition
 import numpy as np
 
 # (x, y, width, height) — axis-aligned, top-left origin, in pixels.
@@ -18,6 +17,10 @@ Box = tuple[int, int, int, int]
 
 def detect_face_box(frame: np.ndarray) -> Optional[Box]:
     """Return the bounding box of the detected face, or ``None``."""
+    # Imported lazily so that tests (and any reviewer running ``pytest``)
+    # don't need dlib installed; the production image always does.
+    import face_recognition
+
     locations = face_recognition.face_locations(frame, model="hog")
     if not locations:
         return None

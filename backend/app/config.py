@@ -36,9 +36,10 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # Upload constraints
+    # Upload constraints. ``MAX_CONTENT_LENGTH`` is derived from
+    # ``MAX_UPLOAD_MB`` inside the app factory so that subclassing this
+    # config in tests (just changing ``MAX_UPLOAD_MB``) does the right thing.
     MAX_UPLOAD_MB = _int_env("MAX_UPLOAD_MB", 50)
-    MAX_CONTENT_LENGTH = MAX_UPLOAD_MB * 1024 * 1024
 
     ALLOWED_VIDEO_EXTENSIONS = frozenset({"mp4", "webm", "mov"})
     ALLOWED_VIDEO_MIMETYPES = frozenset({

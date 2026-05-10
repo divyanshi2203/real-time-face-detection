@@ -6,7 +6,7 @@ Face detection uses [`face_recognition`](https://github.com/ageitgey/face_recogn
 
 ## Status
 
-End-to-end: React frontend uploads a clip, the API runs the detection pipeline, and the UI renders the annotated video alongside the per-frame ROI table. The test suite lands in the final commit.
+End-to-end and tested. React frontend uploads a clip, the API runs the detection pipeline, and the UI renders the annotated video alongside the per-frame ROI table. `pytest` covers validation, error paths, and the happy path with a generated fixture clip.
 
 ## Quick start (Docker)
 
@@ -52,7 +52,7 @@ Backend:
 ```bash
 cd backend
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # runtime + pytest
 python wsgi.py
 ```
 
@@ -66,14 +66,47 @@ npm run dev
 
 The Vite dev server proxies `/api/*` to `http://localhost:5000`.
 
+## Tests
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+
+The test suite (16 tests, ~0.5 s) covers:
+
+- **Validation paths**: missing file, blank filename, disallowed extension, disallowed mimetype, oversized payload (`413`), unprocessable source video (`422`).
+- **HTTP semantics**: `404` for unknown video, `405` for wrong method, `Location` header on `201`.
+- **Happy path** (full upload → process → fetch): generates a 5-frame fixture clip with `imageio`, monkey-patches `detect_face_box` so the suite doesn't need dlib, then asserts persisted ROIs, served mp4, and metadata.
+- **Renderer correctness**: outline drawn at corners, interior left untouched, frame not mutated in place.
+
+`face_recognition` is imported lazily inside `detect_face_box`, so `pytest` runs cleanly without installing dlib.
+
 ## Project layout
 
 ```
-backend/   Flask app (API, detection pipeline, persistence)
+backend/   Flask app (API, detection pipeline, persistence, tests)
 frontend/  React + Vite UI
 docs/      Architecture diagram and the script that generates it
 data/      Uploaded + processed videos (mounted as a volume in Docker)
 ```
+
+## Limitations (intentional)
+
+These were left out to keep the scope honest — each one is a deliberate
+"don't" rather than something missed:
+
+- **No background job queue.** Processing is synchronous inside `POST /api/videos`. A job runner would be the right next step for longer clips.
+- **No auth.** Out of scope for this exercise.
+- **No migrations tool.** SQLite + `db.create_all()` is enough at this size; switching to Postgres would mean adding Alembic.
+- **No CI config.** Tests are designed to run locally with a single `pytest`.
+
+## Troubleshooting
+
+- **`docker build` is slow the first time.** dlib compiles from source as part of the `face_recognition` install (~3–5 min). Subsequent builds reuse the layer.
+- **`<video>` won't seek in the browser.** Make sure the response actually has `Accept-Ranges: bytes`. Flask's `send_file(..., conditional=True)` enables this; reverse-proxies sometimes strip it.
+- **413 on a file under 50 MB.** Check that `MAX_UPLOAD_MB` in your environment hasn't been overridden lower.
 
 ## License
 

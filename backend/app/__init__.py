@@ -23,6 +23,10 @@ def create_app(config_object: type = Config) -> Flask:
     )
     app.config.from_object(config_object)
 
+    # Derived setting — done here (not on the Config class) so subclasses
+    # only need to override MAX_UPLOAD_MB.
+    app.config["MAX_CONTENT_LENGTH"] = app.config["MAX_UPLOAD_MB"] * 1024 * 1024
+
     # Make sure data directories exist before SQLite tries to open the file.
     for key in ("DATA_DIR", "UPLOAD_DIR", "PROCESSED_DIR"):
         Path(app.config[key]).mkdir(parents=True, exist_ok=True)
