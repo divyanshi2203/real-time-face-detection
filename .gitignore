@@ -25,6 +25,9 @@ vite.config.*.timestamp-*
 *.sqlite
 *.db
 
+# Built React assets that the Dockerfile copies into the Flask app at build time
+backend/app/static_frontend/
+
 # Env
 .env
 .env.local
