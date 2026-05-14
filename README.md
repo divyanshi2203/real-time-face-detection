@@ -6,7 +6,7 @@ Face detection uses [`face_recognition`](https://github.com/ageitgey/face_recogn
 
 ## Status
 
-End-to-end and tested. React frontend uploads a clip, the API runs the detection pipeline, and the UI renders the annotated video alongside the per-frame ROI table. `pytest` covers validation, error paths, and the happy path with a generated fixture clip.
+It is end-to-end and tested. React frontend uploads a clip, the API runs the detection pipeline, and the UI renders the annotated video alongside the per-frame ROI table. `pytest` covers validation, error paths, and the happy path with a generated fixture clip.
 
 ## Quick start (Docker)
 
